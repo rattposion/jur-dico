@@ -310,31 +310,73 @@ $getSnippet = function($text, $terms) {
             return '?' . http_build_query($params);
         };
     ?>
-      <div class="pagination" style="display:flex; justify-content:center; gap:0.5rem; padding: 2rem; background: #fff; border-top: 1px solid var(--legal-border);">
-        <?php if ($page > 1): ?>
-             <a class="btn btn-secondary" href="<?= $makePageLink($page - 1) ?>">Anterior</a>
-        <?php endif; ?>
+      <div class="pagination-container" style="display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0.5rem; padding: 2rem; background: #fff; border-top: 1px solid var(--legal-border);">
         
-        <?php
-        $start = max(1, $page - 2);
-        $end = min($totalPages, $page + 2);
-        if ($start > 1) echo '<span style="align-self:center">...</span>';
-        ?>
-
-        <?php for ($i=$start; $i<= $end; $i++): ?>
-          <a class="btn <?= $i === ($page ?? 1) ? 'btn-primary' : 'btn-secondary' ?>" 
-             href="<?= $makePageLink($i) ?>"
-             style="min-width: 40px;">
-            <?= $i ?>
-          </a>
-        <?php endfor; ?>
+        <!-- First & Previous -->
+        <div class="btn-group">
+            <a class="btn btn-secondary <?= ($page <= 1) ? 'disabled' : '' ?>" 
+               href="<?= ($page > 1) ? $makePageLink(1) : '#' ?>" 
+               title="Primeira Página">
+               &laquo;
+            </a>
+            <a class="btn btn-secondary <?= ($page <= 1) ? 'disabled' : '' ?>" 
+               href="<?= ($page > 1) ? $makePageLink($page - 1) : '#' ?>">
+               Anterior
+            </a>
+        </div>
         
-        <?php if ($end < $totalPages) echo '<span style="align-self:center">...</span>'; ?>
+        <!-- Page Numbers -->
+        <div class="d-none d-sm-flex gap-1">
+            <?php
+            $start = max(1, $page - 2);
+            $end = min($totalPages, $page + 2);
+            if ($start > 1) echo '<span style="align-self:center; color:var(--legal-muted);">...</span>';
+            ?>
 
-        <?php if ($page < $totalPages): ?>
-             <a class="btn btn-secondary" href="<?= $makePageLink($page + 1) ?>">Próxima</a>
-        <?php endif; ?>
-  </div>
+            <?php for ($i=$start; $i<= $end; $i++): ?>
+              <a class="btn <?= $i === ($page ?? 1) ? 'btn-primary' : 'btn-outline-secondary' ?>" 
+                 href="<?= $makePageLink($i) ?>"
+                 style="min-width: 40px; border: 1px solid var(--legal-border);">
+                <?= $i ?>
+              </a>
+            <?php endfor; ?>
+            
+            <?php if ($end < $totalPages) echo '<span style="align-self:center; color:var(--legal-muted);">...</span>'; ?>
+        </div>
+
+        <!-- Next & Last -->
+        <div class="btn-group">
+            <a class="btn btn-secondary <?= ($page >= $totalPages) ? 'disabled' : '' ?>" 
+               href="<?= ($page < $totalPages) ? $makePageLink($page + 1) : '#' ?>">
+               Próxima
+            </a>
+            <a class="btn btn-secondary <?= ($page >= $totalPages) ? 'disabled' : '' ?>" 
+               href="<?= ($page < $totalPages) ? $makePageLink($totalPages) : '#' ?>" 
+               title="Última Página">
+               &raquo;
+            </a>
+        </div>
+
+        <!-- Go to Input -->
+        <div class="input-group input-group-sm" style="width: auto; margin-left: 1rem;">
+            <span class="input-group-text bg-light">Pág.</span>
+            <input type="number" min="1" max="<?= $totalPages ?>" 
+                   value="<?= $page ?>" 
+                   class="form-control text-center" 
+                   style="width: 70px;"
+                   onkeydown="if(event.key === 'Enter') { 
+                       let p = parseInt(this.value);
+                       if(p >= 1 && p <= <?= $totalPages ?>) {
+                           let url = new URL(window.location.href);
+                           url.searchParams.set('page', p);
+                           window.location.href = url.toString();
+                       }
+                   }"
+            >
+            <span class="input-group-text bg-light">de <?= $totalPages ?></span>
+        </div>
+
+      </div>
     <?php endif; ?>
 </div>
 

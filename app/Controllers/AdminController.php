@@ -29,12 +29,6 @@ class AdminController extends Controller
         $this->view('admin/stats', ['csrf' => CSRF::generate($this->config)]);
     }
 
-    public function analytics(): void
-    {
-        Auth::requireAuth();
-        $this->view('admin/analytics', ['csrf' => CSRF::generate($this->config)]);
-    }
-
     public function getAnalyticsData(): void
     {
         Auth::requireAuth();
@@ -42,6 +36,9 @@ class AdminController extends Controller
         $period = $_GET['period'] ?? 'month';
         $start = $_GET['start'] ?? null;
         $end = $_GET['end'] ?? null;
+        $classFilter = $_GET['class'] ?? null;
+        $catFilter = $_GET['category'] ?? null;
+        $techClassFilter = $_GET['classification'] ?? null;
         
         $db = \App\Core\DB::pdo();
         
@@ -68,10 +65,14 @@ class AdminController extends Controller
                 $prevStartDate->modify('-60 days')->setTime(0, 0, 0);
                 $prevEndDate->modify('-31 days')->setTime(23, 59, 59);
                 break;
+            case 'year':
+                $startDate->modify('-1 year')->setTime(0, 0, 0);
+                $prevStartDate->modify('-2 years')->setTime(0, 0, 0);
+                $prevEndDate->modify('-1 year')->setTime(23, 59, 59);
+                break;
             case 'custom':
                 if ($start) $startDate = new \DateTime($start);
                 if ($end) $endDate = new \DateTime($end . ' 23:59:59');
-                // For custom, prev period is same duration before start
                 $diff = $startDate->diff($endDate);
                 $prevEndDate = clone $startDate;
                 $prevEndDate->modify('-1 second');
@@ -80,21 +81,58 @@ class AdminController extends Controller
                 break;
         }
         
-        $fmtStart = $startDate->format('Y-m-d H:i:s');
-        $fmtEnd = $endDate->format('Y-m-d H:i:s');
-        $fmtPrevStart = $prevStartDate->format('Y-m-d H:i:s');
-        $fmtPrevEnd = $prevEndDate->format('Y-m-d H:i:s');
+        $fmtStart = $startDate->format('Y-m-d');
+        $fmtEnd = $endDate->format('Y-m-d');
+        $fmtPrevStart = $prevStartDate->format('Y-m-d');
+        $fmtPrevEnd = $prevEndDate->format('Y-m-d');
+        
+        // Filter Helpers
+        $buildWhere = function($alias = '') use ($classFilter, $catFilter, $techClassFilter) {
+            $prefix = $alias ? $alias . '.' : '';
+            // Use dataDecisao for timeline analysis as requested ("real evolution")
+            $sql = " {$prefix}dataDecisao BETWEEN :s AND :e";
+            
+            if ($classFilter) $sql .= " AND {$prefix}siglaClasse = :class";
+            if ($catFilter) $sql .= " AND {$prefix}category_id = :cat";
+            
+            if ($techClassFilter) {
+                switch ($techClassFilter) {
+                    case 'estrutural':
+                        // Assuming ACOR and DTXT and related classes imply Structural
+                        $sql .= " AND ({$prefix}siglaClasse IN ('ACO', 'ACOR', 'DTXT') OR {$prefix}category_id IN (SELECT id FROM categories WHERE name LIKE '%Estrutural%'))";
+                        break;
+                    case 'nao_estrutural':
+                        $sql .= " AND ({$prefix}siglaClasse NOT IN ('ACO', 'ACOR', 'DTXT') AND ({$prefix}category_id IS NULL OR {$prefix}category_id NOT IN (SELECT id FROM categories WHERE name LIKE '%Estrutural%')))";
+                        break;
+                    case 'nao_estrutural_tecnicas':
+                        // Complex case: Unstructured but with techniques. 
+                        // Implementation: Search in ementa/decisao for keywords if no explicit field exists
+                        $sql .= " AND ({$prefix}siglaClasse NOT IN ('ACO', 'ACOR', 'DTXT') AND ({$prefix}ementa LIKE '%técnicas estruturantes%' OR {$prefix}decisao LIKE '%medidas estruturantes%'))";
+                        break;
+                }
+            }
+            
+            return $sql;
+        };
+        
+        $bindParams = function($s, $e) use ($classFilter, $catFilter) {
+            $p = [':s' => $s, ':e' => $e];
+            if ($classFilter) $p[':class'] = $classFilter;
+            if ($catFilter) $p[':cat'] = $catFilter;
+            return $p;
+        };
         
         // Helper for counts
-        $getCount = function($s, $e) use ($db) {
-            $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE created_at BETWEEN :s AND :e");
-            $stmt->execute([':s' => $s, ':e' => $e]);
+        $getCount = function($s, $e) use ($db, $buildWhere, $bindParams) {
+            $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE " . $buildWhere());
+            $stmt->execute($bindParams($s, $e));
             return (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
         };
         
-        $getCategorizedCount = function($s, $e) use ($db) {
-            $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE category_id IS NOT NULL AND created_at BETWEEN :s AND :e");
-            $stmt->execute([':s' => $s, ':e' => $e]);
+        $getCategorizedCount = function($s, $e) use ($db, $buildWhere, $bindParams) {
+            $where = $buildWhere();
+            $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE category_id IS NOT NULL AND $where");
+            $stmt->execute($bindParams($s, $e));
             return (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
         };
 
@@ -108,32 +146,36 @@ class AdminController extends Controller
         $currentRate = $currentVolume > 0 ? ($currentCat / $currentVolume) * 100 : 0;
         $prevCat = $getCategorizedCount($fmtPrevStart, $fmtPrevEnd);
         $prevRate = $prevVolume > 0 ? ($prevCat / $prevVolume) * 100 : 0;
-        $rateChange = $currentRate - $prevRate; // Absolute percentage point change
+        $rateChange = $currentRate - $prevRate;
         
         // KPI 3: Active Categories (Diversity)
-        $sqlCatDiv = "SELECT COUNT(DISTINCT category_id) as c FROM records WHERE created_at BETWEEN :s AND :e AND category_id IS NOT NULL";
+        $where = $buildWhere();
+        $params = $bindParams($fmtStart, $fmtEnd);
+        $sqlCatDiv = "SELECT COUNT(DISTINCT category_id) as c FROM records WHERE category_id IS NOT NULL AND $where";
         $stmt = $db->prepare($sqlCatDiv);
-        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $stmt->execute($params);
         $currentDiv = (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
         
-        // KPI 4: Decisions (Judgments) - using dataDecisao if available in range, else created_at
-        // For simplicity, counting records with dataDecisao populated within period
-        // Note: dataDecisao is usually YYYY-MM-DD or similar string.
-        $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE dataDecisao IS NOT NULL AND created_at BETWEEN :s AND :e");
-        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        // KPI 4: Decisions (Judgments)
+        $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE dataDecisao IS NOT NULL AND $where");
+        $stmt->execute($params);
         $currentDecisions = (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
 
         // Chart 1: Trend (Line) - Daily Volume
-        $sqlTrend = "SELECT DATE(created_at) as date, COUNT(1) as count FROM records WHERE created_at BETWEEN :s AND :e GROUP BY date ORDER BY date";
+        // Use dataDecisao for "Real Evolution"
+        $sqlTrend = "SELECT dataDecisao as date, COUNT(1) as count FROM records WHERE $where GROUP BY date ORDER BY date";
         $stmt = $db->prepare($sqlTrend);
-        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $stmt->execute($params);
         $trendData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         
         // Fill gaps for trend
         $labels = [];
         $values = [];
         $interval = new \DateInterval('P1D');
-        $periodRange = new \DatePeriod($startDate, $interval, $endDate);
+        // Ensure start/end are valid DateTime objects
+        $pStart = new \DateTime($fmtStart);
+        $pEnd = new \DateTime($fmtEnd);
+        $periodRange = new \DatePeriod($pStart, $interval, $pEnd);
         $trendMap = array_column($trendData, 'count', 'date');
         
         foreach ($periodRange as $dt) {
@@ -143,13 +185,14 @@ class AdminController extends Controller
         }
 
         // Chart 2: Top Categories (Bar)
-        $sqlTopCats = "SELECT c.name, COUNT(r.id) as count FROM records r JOIN categories c ON r.category_id = c.id WHERE r.created_at BETWEEN :s AND :e GROUP BY c.name ORDER BY count DESC LIMIT 5";
+        // Note: If filtering by specific category, this chart will show only that category (1 bar)
+        $whereR = $buildWhere('r');
+        $sqlTopCats = "SELECT c.name, COUNT(r.id) as count FROM records r JOIN categories c ON r.category_id = c.id WHERE $whereR GROUP BY c.name ORDER BY count DESC LIMIT 5";
         $stmt = $db->prepare($sqlTopCats);
-        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $stmt->execute($params);
         $topCats = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         
         // Chart 3: Status Distribution (Doughnut)
-        // Categorized vs Pending
         $pending = $currentVolume - $currentCat;
         $distribution = [
             ['label' => 'Categorizado', 'value' => $currentCat],
@@ -157,16 +200,16 @@ class AdminController extends Controller
         ];
 
         // Table: Recent Records
-        $sqlRecent = "SELECT r.numeroProcesso, r.siglaClasse, r.dataDecisao, c.name as category FROM records r LEFT JOIN categories c ON r.category_id = c.id WHERE r.created_at BETWEEN :s AND :e ORDER BY r.created_at DESC LIMIT 10";
+        $sqlRecent = "SELECT r.numeroProcesso, r.siglaClasse, r.dataDecisao, c.name as category FROM records r LEFT JOIN categories c ON r.category_id = c.id WHERE $whereR ORDER BY r.created_at DESC LIMIT 10";
         $stmt = $db->prepare($sqlRecent);
-        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $stmt->execute($params);
         $recentRecords = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $response = [
             'kpi' => [
                 'volume' => ['value' => $currentVolume, 'change' => round($volumeChange, 1)],
                 'rate' => ['value' => round($currentRate, 1), 'change' => round($rateChange, 1)],
-                'diversity' => ['value' => $currentDiv, 'change' => 0], // Simplified
+                'diversity' => ['value' => $currentDiv, 'change' => 0],
                 'decisions' => ['value' => $currentDecisions, 'change' => 0]
             ],
             'charts' => [

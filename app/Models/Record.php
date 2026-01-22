@@ -14,7 +14,24 @@ class Record
         $numeroProcesso = $data['numeroProcesso'] ?? $data['numero'] ?? null;
         $siglaClasse = $data['siglaClasse'] ?? $data['classe'] ?? null;
         $ministroRelator = $data['ministroRelator'] ?? $data['relator'] ?? null;
-        $dataDecisao = $data['dataDecisao'] ?? $data['dataJulgamento'] ?? null;
+        
+        // Normalize Dates to YYYY-MM-DD
+        $normalizeDate = function($d) {
+            if (!$d) return null;
+            // If already YYYY-MM-DD, return it
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) return $d;
+            // Try to parse DD/MM/YYYY
+            if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $d, $m)) {
+                return sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+            }
+            // Try strtotime
+            $ts = strtotime(str_replace('/', '-', $d)); // Handle / as separator
+            if ($ts) return date('Y-m-d', $ts);
+            return $d;
+        };
+
+        $dataDecisao = $normalizeDate($data['dataDecisao'] ?? $data['dataJulgamento'] ?? null);
+        $dataPublicacao = $normalizeDate($data['dataPublicacao'] ?? null);
 
         $stmt = DB::pdo()->prepare('INSERT INTO records (
             id, numeroProcesso, numeroRegistro, siglaClasse, descricaoClasse,
@@ -46,7 +63,7 @@ class Record
             ':nomeOrgaoJulgador' => self::s($data['nomeOrgaoJulgador'] ?? null),
             ':codOrgaoJulgador' => self::s($data['codOrgaoJulgador'] ?? null),
             ':ministroRelator' => self::s($ministroRelator),
-            ':dataPublicacao' => self::s($data['dataPublicacao'] ?? null),
+            ':dataPublicacao' => self::s($dataPublicacao),
             ':ementa' => self::s($data['ementa'] ?? null),
             ':tipoDeDecisao' => self::s($data['tipoDeDecisao'] ?? null),
             ':dataDecisao' => self::s($dataDecisao),
@@ -58,35 +75,35 @@ class Record
     public static function countBeforeYear(string $year): int
     {
         $stmt = DB::pdo()->prepare("SELECT COUNT(1) as c FROM records WHERE dataDecisao < :date");
-        $stmt->execute([':date' => "{$year}0101"]);
+        $stmt->execute([':date' => "{$year}-01-01"]);
         return (int)$stmt->fetch(PDO::FETCH_ASSOC)['c'];
     }
 
     public static function deleteBeforeYear(string $year): int
     {
         $stmt = DB::pdo()->prepare("DELETE FROM records WHERE dataDecisao < :date");
-        $stmt->execute([':date' => "{$year}0101"]);
+        $stmt->execute([':date' => "{$year}-01-01"]);
         return $stmt->rowCount();
     }
 
     public static function countBetweenYears(string $startYear, string $endYear): int
     {
         $stmt = DB::pdo()->prepare("SELECT COUNT(1) as c FROM records WHERE dataDecisao >= :start AND dataDecisao <= :end");
-        $stmt->execute([':start' => "{$startYear}0101", ':end' => "{$endYear}1231"]);
+        $stmt->execute([':start' => "{$startYear}-01-01", ':end' => "{$endYear}-12-31"]);
         return (int)$stmt->fetch(PDO::FETCH_ASSOC)['c'];
     }
 
     public static function countAfterYear(string $year): int
     {
         $stmt = DB::pdo()->prepare("SELECT COUNT(1) as c FROM records WHERE dataDecisao > :date");
-        $stmt->execute([':date' => "{$year}1231"]);
+        $stmt->execute([':date' => "{$year}-12-31"]);
         return (int)$stmt->fetch(PDO::FETCH_ASSOC)['c'];
     }
 
     public static function deleteAfterYear(string $year): int
     {
         $stmt = DB::pdo()->prepare("DELETE FROM records WHERE dataDecisao > :date");
-        $stmt->execute([':date' => "{$year}1231"]);
+        $stmt->execute([':date' => "{$year}-12-31"]);
         return $stmt->rowCount();
     }
 

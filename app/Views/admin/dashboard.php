@@ -204,32 +204,5 @@ use App\Core\View;
         </a>
       </div>
     </form>
-
-    <div class="indicators" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-      <div class="stat-card" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--legal-border); box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-        <div class="stat-label">Total de Registros</div>
-        <div class="stat-value" id="indTotal">0</div>
-      </div>
-      <div class="stat-card" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--legal-border); box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-        <div class="stat-label" style="color: var(--legal-success);">Categorizados</div>
-        <div class="stat-value" id="indCat" style="color: var(--legal-success);">0</div>
-        <div class="sub" id="indPct" style="font-size: 0.9rem; color: var(--legal-muted);">0%</div>
-      </div>
-      <div class="stat-card" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--legal-border); box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-        <div class="stat-label" style="color: var(--legal-gold);">Pendentes</div>
-        <div class="stat-value" id="indPend" style="color: var(--legal-gold);">0</div>
-      </div>
-    </div>
-
-    <div class="charts" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
-      <div class="chart" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--legal-border);">
-        <h3 style="text-align: center; margin-bottom: 1.5rem; font-size: 1.1rem;">Distribuição por categorias</h3>
-        <svg id="pieChart" viewBox="0 0 200 200" role="img" aria-label="Distribuição por categorias" style="max-height: 300px; width: 100%;"></svg>
-      </div>
-      <div class="chart" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--legal-border);">
-        <h3 style="text-align: center; margin-bottom: 1.5rem; font-size: 1.1rem;">Evolução temporal</h3>
-        <svg id="lineChart" viewBox="0 0 400 200" role="img" aria-label="Evolução temporal" style="max-height: 300px; width: 100%;"></svg>
-      </div>
-    </div>
   </section>
 </div>

@@ -33,6 +33,7 @@ $router->post('/admin/upload', [App\Controllers\AdminController::class, 'upload'
 $router->post('/admin/category/create', [App\Controllers\AdminController::class, 'createCategory']);
 $router->post('/admin/category/assign', [App\Controllers\AdminController::class, 'assignCategory']);
 $router->get('/admin/dashboard/data', [App\Controllers\AdminController::class, 'dashboardData']);
+$router->get('/admin/api/analytics', [App\Controllers\AdminController::class, 'getAnalyticsData']);
 $router->get('/admin/export/csv', [App\Controllers\AdminController::class, 'exportCsv']);
 $router->get('/admin/export/pdf', [App\Controllers\AdminController::class, 'exportPdf']);
 $router->post('/admin/ai/classify', [App\Controllers\AdminController::class, 'classifyAI']);
