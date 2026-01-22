@@ -74,6 +74,7 @@ class DB
             siglaClasse VARCHAR(50) NULL,
             descricaoClasse VARCHAR(255) NULL,
             nomeOrgaoJulgador VARCHAR(255) NULL,
+            codOrgaoJulgador VARCHAR(50) NULL,
             ministroRelator VARCHAR(150) NULL,
             dataPublicacao VARCHAR(20) NULL,
             ementa TEXT NULL,
@@ -99,6 +100,13 @@ class DB
         // Ensure payment_status column exists (simple migration)
         try {
             self::pdo()->exec("ALTER TABLE records ADD COLUMN payment_status VARCHAR(20) DEFAULT NULL");
+        } catch (Exception $e) {
+            // Ignore if column already exists
+        }
+
+        // Ensure codOrgaoJulgador column exists
+        try {
+            self::pdo()->exec("ALTER TABLE records ADD COLUMN codOrgaoJulgador VARCHAR(50) DEFAULT NULL");
         } catch (Exception $e) {
             // Ignore if column already exists
         }

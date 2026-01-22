@@ -1,0 +1,22 @@
+{
+    "name": "dv/plataforma",
+    "description": "DV Plataforma - Sistema de Gestão de Processos",
+    "type": "project",
+    "license": "proprietary",
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "require": {
+        "php": ">=8.0",
+        "ext-json": "*",
+        "ext-pdo": "*"
+    },
+    "scripts": {
+        "test": "php tests/test_all.php"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

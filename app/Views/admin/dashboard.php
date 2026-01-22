@@ -69,6 +69,18 @@ use App\Core\View;
           <label for="jsonFile">Arquivo JSON</label>
           <input type="file" id="jsonFile" name="json" accept="application/json,.json" required style="padding:0.5rem; border:1px solid var(--legal-border); border-radius:4px; width:100%;">
         </div>
+        <div class="form-group">
+          <label for="tabSelect">Aba / Tipo (Opcional)</label>
+          <select id="tabSelect" name="tab" style="padding:0.5rem; border:1px solid var(--legal-border); border-radius:4px; width:100%;">
+            <option value="">Detectar do JSON</option>
+            <option value="acor">Processo Estrutural ACOR</option>
+            <option value="dtxt">Processo Estrutural DTXT</option>
+            <option value="acp">Ação Civil Pública</option>
+            <option value="ap">Ação Popular</option>
+            <option value="msc">Mandado De Segurança Coletivo</option>
+          </select>
+          <small class="text-muted" style="display:block; margin-top:4px;">Se selecionado, forçará a Classe do processo.</small>
+        </div>
         <button class="btn btn-secondary" type="submit" style="width:100%; justify-content:center;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           Enviar e Importar

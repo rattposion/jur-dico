@@ -12,6 +12,13 @@ class Router
     {
         $this->config = $config;
         $this->get('/api/status', [\App\Controllers\ApiStatusController::class, 'check']);
+        $this->get('/admin/stats', [\App\Controllers\AdminController::class, 'stats']);
+        $this->get('/admin/api/stats', [\App\Controllers\AdminController::class, 'getStatsData']);
+        
+        // Analytics Dashboard
+        $this->get('/admin/analytics', [\App\Controllers\AdminController::class, 'analytics']);
+        $this->get('/admin/api/analytics', [\App\Controllers\AdminController::class, 'getAnalyticsData']);
+        $this->get('/admin/bulk-ops', [\App\Controllers\BulkOpsController::class, 'index']);
     }
 
     public function get(string $path, $handler): void

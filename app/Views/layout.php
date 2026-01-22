@@ -32,10 +32,10 @@ $user = Auth::user();
                 <a href="/" class="<?= ($_SERVER['REQUEST_URI'] === '/' || $_SERVER['REQUEST_URI'] === '/index.php') ? 'active' : '' ?>">Início</a>
                 <?php if ($user): ?>
                     <a href="/records" class="<?= strpos($_SERVER['REQUEST_URI'], '/records') === 0 ? 'active' : '' ?>">Registros</a>
-                    <a href="/chat" class="<?= strpos($_SERVER['REQUEST_URI'], '/chat') === 0 ? 'active' : '' ?>">Chat</a>
+                    <!-- <a href="/chat" class="<?= strpos($_SERVER['REQUEST_URI'], '/chat') === 0 ? 'active' : '' ?>">Chat</a> -->
                     <?php if (($user['role'] ?? '') === 'admin'): ?>
                         <a href="/admin" class="<?= strpos($_SERVER['REQUEST_URI'], '/admin') === 0 && strpos($_SERVER['REQUEST_URI'], '/admin/ai') === false ? 'active' : '' ?>">Admin</a>
-                        <a href="/admin/ai/analysis" class="<?= strpos($_SERVER['REQUEST_URI'], '/admin/ai/analysis') === 0 ? 'active' : '' ?>">Análise IA</a>
+                        <!-- <a href="/admin/ai/analysis" class="<?= strpos($_SERVER['REQUEST_URI'], '/admin/ai/analysis') === 0 ? 'active' : '' ?>">Análise IA</a> -->
                     <?php endif; ?>
                 <?php endif; ?>
             </nav>
@@ -60,10 +60,10 @@ $user = Auth::user();
       </div>
     </div>
   </header>
-  <main class="<?= strpos($_SERVER['REQUEST_URI'], '/chat') === 0 ? 'chat-wrapper' : 'container main' ?>">
+  <main class="<?= (strpos($_SERVER['REQUEST_URI'], '/chat') === 0 || strpos($_SERVER['REQUEST_URI'], '/records') === 0) ? 'full-width-main' : 'container main' ?>">
     <?= $content ?>
   </main>
-  <?php if (strpos($_SERVER['REQUEST_URI'], '/chat') !== 0): ?>
+  <?php if (strpos($_SERVER['REQUEST_URI'], '/chat') !== 0 && strpos($_SERVER['REQUEST_URI'], '/records') !== 0): ?>
   <footer class="container footer">
     <small>© <?= date('Y') ?></small>
   </footer>

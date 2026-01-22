@@ -29,9 +29,16 @@ class RecordsController extends Controller
             'juiz' => isset($_GET['juiz']) ? trim((string)$_GET['juiz']) : null,
             'numero' => isset($_GET['numero']) ? trim((string)$_GET['numero']) : null,
             'ano' => isset($_GET['ano']) ? trim((string)$_GET['ano']) : null,
+            // Tab filter
+            'tab' => isset($_GET['tab']) ? trim((string)$_GET['tab']) : null,
         ];
-        $sort = isset($_GET['sort']) ? trim((string)$_GET['sort']) : 'dataDecisao';
+        $sort = isset($_GET['sort']) ? trim((string)$_GET['sort']) : 'dataPublicacao';
         $dir = isset($_GET['dir']) ? trim((string)$_GET['dir']) : 'DESC';
+
+        // Allowed sort columns
+        $allowedSorts = ['numeroProcesso', 'siglaClasse', 'ministroRelator', 'nomeOrgaoJulgador', 'dataDecisao', 'dataPublicacao', 'created_at'];
+        if (!in_array($sort, $allowedSorts)) $sort = 'dataPublicacao';
+        $dir = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
 
         return [$page, $q, $filters, $sort, $dir];
     }
@@ -47,10 +54,14 @@ class RecordsController extends Controller
         }
 
         $res = Record::paginate($page, 20, $q, $filters, $sort, $dir);
+        $tabCounts = Record::getTabCounts($q, $filters);
+        $categoryCounts = Record::getCategoryCounts($q, $filters);
         $cats = Category::all();
         $this->view('records/list', [
             'items' => $res['items'], 
             'total' => $res['total'], 
+            'tabCounts' => $tabCounts,
+            'categoryCounts' => $categoryCounts,
             'page' => $page, 
             'q' => $q, 
             'filters' => $filters, 

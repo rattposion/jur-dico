@@ -65,156 +65,234 @@ $getSnippet = function($text, $terms) {
     return $safeSnippet;
 };
 ?>
-<div class="container mt-2">
-  <div class="card">
-    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--legal-border); padding-bottom:1rem; margin-bottom:1.5rem;">
-      <h2 style="margin:0; font-size:1.5rem;">Registros Processuais</h2>
-      <span class="text-muted" style="font-size:0.9rem;">Total: <?= View::e($total ?? 0) ?> registros</span>
+<!-- Full Width Layout Container -->
+<div style="display: flex; flex-direction: column; min-height: 100%; width: 100%;">
+    
+    <!-- Header Section -->
+    <div style="padding: 1.5rem 2rem; border-bottom: 1px solid var(--legal-border);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <h2 style="margin:0; font-size:1.8rem; color: var(--legal-navy);">Registros Processuais</h2>
+            <span class="text-muted" style="font-size:0.9rem;">Total: <?= View::e($total ?? 0) ?> registros</span>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs-scroll-container" style="overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+          <div class="tabs-nav" style="display: inline-flex; gap: 0.5rem; min-width: 100%;">
+            <?php
+              $currentTab = $_GET['tab'] ?? '';
+              $tabs = [
+                  '' => 'Todos',
+                  'acor' => 'Processo Estrutural ACOR',
+                  'dtxt' => 'Processo Estrutural DTXT',
+                  'acp' => 'Ação Civil Pública',
+                  'ap' => 'Ação Popular',
+                  'msc' => 'Mandado De Segurança Coletivo'
+              ];
+              
+              foreach ($tabs as $key => $label):
+                  $active = ($currentTab === $key);
+                  $countKey = $key === '' ? 'all_count' : $key;
+                  $count = $tabCounts[$countKey] ?? 0;
+                  
+                  $params = $_GET;
+                  if ($key === '') {
+                      unset($params['tab']);
+                  } else {
+                      $params['tab'] = $key;
+                  }
+                  $params['page'] = 1; // Reset page
+                  
+                  $url = '?' . http_build_query($params);
+            ?>
+              <a href="<?= $url ?>" 
+                 class="tab-link <?= $active ? 'active' : '' ?>"
+                 style="white-space: nowrap; padding: 0.75rem 1.25rem; text-decoration: none; color: <?= $active ? 'var(--legal-royal)' : 'var(--legal-muted)' ?>; font-weight: <?= $active ? '600' : '500' ?>; border-bottom: 2px solid <?= $active ? 'var(--legal-royal)' : 'transparent' ?>; transition: all 0.2s ease;">
+                  <?= View::e($label) ?> <span style="font-size: 0.8em; opacity: 0.8; margin-left: 4px; background: <?= $active ? 'rgba(79, 70, 229, 0.1)' : 'rgba(0,0,0,0.05)' ?>; padding: 2px 6px; border-radius: 99px;"><?= $count ?></span>
+              </a>
+            <?php endforeach; ?>
+          </div>
+        </div>
     </div>
 
-    <form class="filter-form mb-1" method="get" action="/records" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--legal-border);">
-      <div class="form-group" style="margin:0">
-        <label for="q" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Palavra-chave</label>
-        <div class="input-group">
-            <input type="search" id="q" name="q" class="form-control" placeholder="Ex: 'dano moral' AND tribunal" value="<?= View::e($q ?? '') ?>">
-        </div>
-        <small class="text-muted" style="font-size: 0.75rem;">Suporta: "termo", AND, , (vírgula)</small>
-      </div>
-      
-      <div class="form-group" style="margin:0">
-        <label for="type" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Classe</label>
-        <input type="text" id="type" name="type" class="form-control" placeholder="Ex: HC, RE..." value="<?= View::e($_GET['type'] ?? '') ?>">
-      </div>
+    <!-- Filter Section (Gray Band) -->
+    <div style="background: #f8fafc; padding: 1.5rem 2rem; border-bottom: 1px solid var(--legal-border);">
+        <form method="get" action="/records" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 0;">
+          <?php if(!empty($_GET['tab'])): ?>
+            <input type="hidden" name="tab" value="<?= View::e($_GET['tab']) ?>">
+          <?php endif; ?>
+          <div class="form-group" style="margin:0">
+            <label for="q" style="font-weight: 500; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--legal-muted);">Pesquisa</label>
+            <div class="input-group">
+                <input type="search" id="q" name="q" class="form-control" placeholder="Ex: 'dano moral' AND tribunal" value="<?= View::e($q ?? '') ?>" style="border-radius: 4px;">
+            </div>
+          </div>
+          
+          <div class="form-group" style="margin:0">
+            <label for="numero" style="font-weight: 500; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--legal-muted);">Número</label>
+            <input type="text" id="numero" name="numero" class="form-control" placeholder="Número do processo..." value="<?= View::e($_GET['numero'] ?? '') ?>" style="border-radius: 4px;">
+          </div>
 
-      <div class="form-group" style="margin:0">
-        <label for="relator" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Relator</label>
-        <input type="text" id="relator" name="relator" class="form-control" placeholder="Nome do Ministro" value="<?= View::e($_GET['relator'] ?? '') ?>">
-      </div>
+          <div class="form-group" style="margin:0">
+            <label for="relator" style="font-weight: 500; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--legal-muted);">Relator</label>
+            <input type="text" id="relator" name="relator" class="form-control" placeholder="Nome do Ministro" value="<?= View::e($_GET['relator'] ?? '') ?>" style="border-radius: 4px;">
+          </div>
 
-      <div class="form-group" style="margin:0">
-        <label for="start" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Data Início</label>
-        <input type="date" id="start" name="start" class="form-control" value="<?= View::e($_GET['start'] ?? '') ?>">
-      </div>
+          <div class="form-group" style="margin:0">
+            <label for="start" style="font-weight: 500; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--legal-muted);">Data Início</label>
+            <input type="date" id="start" name="start" class="form-control" value="<?= View::e($_GET['start'] ?? '') ?>" style="border-radius: 4px;">
+          </div>
 
-      <div class="form-group" style="margin:0">
-        <label for="end" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Data Fim</label>
-        <input type="date" id="end" name="end" class="form-control" value="<?= View::e($_GET['end'] ?? '') ?>">
-      </div>
+          <div class="form-group" style="margin:0">
+            <label for="end" style="font-weight: 500; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--legal-muted);">Data Fim</label>
+            <input type="date" id="end" name="end" class="form-control" value="<?= View::e($_GET['end'] ?? '') ?>" style="border-radius: 4px;">
+          </div>
 
-      <div class="form-group" style="margin:0">
-        <label for="category" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Categoria</label>
-        <select id="category" name="category" class="form-select">
-          <option value="">Todas as categorias</option>
-          <?php foreach (($categories ?? []) as $c): ?>
-            <option value="<?= View::e($c['id']) ?>" <?= (isset($_GET['category']) && $_GET['category'] == $c['id']) ? 'selected' : '' ?>>
-              <?= View::e($c['name']) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+          <div class="form-group" style="margin:0">
+            <label for="category" style="font-weight: 500; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--legal-muted);">Categoria</label>
+            <select id="category" name="category" class="form-select" style="border-radius: 4px;">
+              <option value="">Todas as categorias</option>
+              <option value="uncategorized" <?= (isset($_GET['category']) && $_GET['category'] === 'uncategorized') ? 'selected' : '' ?>>
+                Sem Categoria (<?= $categoryCounts['uncategorized'] ?? 0 ?>)
+              </option>
+              <?php foreach (($categories ?? []) as $c): ?>
+                <?php $count = $categoryCounts[$c['id']] ?? 0; ?>
+                <option value="<?= View::e($c['id']) ?>" <?= (isset($_GET['category']) && $_GET['category'] == $c['id']) ? 'selected' : '' ?>>
+                  <?= View::e($c['name']) ?> (<?= $count ?>)
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
 
-      <div class="form-group" style="margin:0; display:flex; align-items:flex-end;">
-        <button class="btn btn-primary" type="submit" style="width:100%">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-          Filtrar Resultados
-        </button>
-      </div>
-    </form>
+          <div class="form-group" style="margin:0; display:flex; align-items:flex-end;">
+            <button class="btn btn-primary" type="submit" style="width:100%; border-radius: 4px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+              Filtrar
+            </button>
+          </div>
+        </form>
+    </div>
 
-    <div id="recordsRoot" class="table-responsive" data-csrf="<?= View::e($csrf ?? '') ?>" data-admin="<?= !empty($user) && (($user['role'] ?? '')==='admin') ? '1' : '0' ?>">
-      <table class="table table-hover">
-        <thead>
+    <!-- Data Table -->
+    <div id="recordsRoot" class="table-responsive" data-csrf="<?= View::e($csrf ?? '') ?>" data-admin="<?= !empty($user) && (($user['role'] ?? '')==='admin') ? '1' : '0' ?>" style="flex: 1;">
+      <table class="table table-hover" style="margin: 0; border-collapse: collapse; width: 100%;">
+        <thead style="background: white; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid var(--legal-border);">
           <tr>
-            <th style="width: 80px;">ID</th>
-            <th>Processo</th>
-            <th>Classe</th>
-            <th>Órgão Julgador</th>
-            <th>Relator</th>
-            <th>Data Decisão</th>
-            <th>Categoria</th>
-            <th class="text-right">Ações</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">CÓD. ÓRGÃO</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">CLASSE</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">NÚMERO</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">RELATOR</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">DATA JULGAMENTO</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">DATA PUBLICAÇÃO</th>
+            <th style="padding: 1rem; text-align: center; min-width: 250px; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">EMENTA</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">CATEGORIA</th>
+            <th style="padding: 1rem; text-align: center; white-space: nowrap; font-size: 0.85rem; text-transform: uppercase; color: var(--legal-muted);">AÇÃO</th>
           </tr>
         </thead>
         <tbody>
           <?php if (empty($items)): ?>
             <tr>
-              <td colspan="8" class="text-center text-muted" style="padding: 2rem;">
+              <td colspan="8" class="text-center text-muted" style="padding: 3rem;">
                 Nenhum registro encontrado com os filtros selecionados.
               </td>
             </tr>
           <?php else: ?>
             <?php foreach ($items as $row): ?>
-              <tr data-id="<?= View::e($row['id']) ?>">
-                <td>
-                  <a href="/records/view/<?= View::e($row['id']) ?>" style="font-weight:600; font-family:monospace;">
-                    #<?= View::e($row['id']) ?>
-                  </a>
+              <tr data-id="<?= View::e($row['id']) ?>" style="border-bottom: 1px solid var(--legal-border);">
+                <!-- codOrgaoJulgador -->
+                <td class="text-muted" style="padding: 1rem; text-align: center; vertical-align: middle;">
+                  <?= View::e($row['codOrgaoJulgador'] ?? '-') ?>
                 </td>
-                <td>
-                  <span style="font-weight:500; color:var(--legal-navy)"><?= $highlight($row['numeroProcesso'], $terms) ?></span>
-                </td>
-                <td>
-                  <span class="badge" style="background:#eef2ff; color:var(--legal-royal); padding:2px 8px; border-radius:4px; font-size:0.85rem; font-weight:500;">
-                    <?= View::e(($row['siglaClasse'] ?? '') . ' ' . ($row['descricaoClasse'] ?? '')) ?>
+
+                <!-- Classe -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; white-space: nowrap;">
+                  <span class="badge" style="background:#eef2ff; color:var(--legal-royal); padding:4px 8px; border-radius:4px; font-size:0.85rem; font-weight:500;">
+                    <?= View::e($row['siglaClasse'] ?? '-') ?>
                   </span>
                 </td>
-                <td><?= $highlight($row['nomeOrgaoJulgador'] ?? '-', $terms) ?></td>
-                <td><?= $highlight($row['ministroRelator'], $terms) ?></td>
-                <td>
+                
+                <!-- número (Link) -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; white-space: nowrap;">
+                   <a href="/records/view/<?= View::e($row['id']) ?>" style="font-weight:600; color:var(--legal-navy); text-decoration:none;">
+                     <?= $highlight($row['numeroProcesso'], $terms) ?>
+                   </a>
+                </td>
+
+                <!-- relator -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?= View::e($row['ministroRelator'] ?? '') ?>">
+                    <?= $highlight($row['ministroRelator'], $terms) ?>
+                </td>
+
+                <!-- dataJulgamento -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; white-space: nowrap;">
                   <?php 
                     $date = $row['dataDecisao']; 
                     echo $date ? date('d/m/Y', strtotime($date)) : '-';
                   ?>
                 </td>
-                <td>
-                  <?php if (!empty($categories) && !empty($user) && (($user['role'] ?? '')==='admin')): ?>
-                    <select name="category" aria-label="Categoria" style="padding: 4px 8px; font-size: 0.9rem; border-color: #cbd5e1; border-radius: 4px;">
-                      <option value="">Sem categoria</option>
-                      <?php foreach ($categories as $c): ?>
-                        <option value="<?= View::e($c['id']) ?>" <?= (int)($row['category_id'] ?? 0) === (int)$c['id'] ? 'selected' : '' ?>><?= View::e($c['name']) ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  <?php else: ?>
-                    <?php if($row['category']): ?>
-                      <span style="display:inline-flex; align-items:center; gap:4px;">
-                        <span style="width:6px; height:6px; background:var(--legal-success); border-radius:50%;"></span>
-                        <?= View::e($row['category']) ?>
-                      </span>
-                    <?php else: ?>
-                      <span class="text-muted">-</span>
-                    <?php endif; ?>
-                  <?php endif; ?>
+
+                <!-- dataPublicacao -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; white-space: nowrap;">
+                  <?php 
+                    $datePub = $row['dataPublicacao'] ?? null; 
+                    echo $datePub ? date('d/m/Y', strtotime($datePub)) : '-';
+                  ?>
                 </td>
-                <td class="text-right">
-                  <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
-                    <a href="/records/view/<?= View::e($row['id']) ?>" class="btn btn-secondary btn-sm" title="Visualizar Detalhes">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+
+                <!-- Ementa -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; max-width: 300px; font-size: 0.9rem;">
+                    <div style="color: #475569; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; text-align: center;">
+                        <?= $highlight(mb_substr($row['ementa'] ?? '', 0, 150) . (mb_strlen($row['ementa'] ?? '') > 150 ? '...' : ''), $terms) ?>
+                    </div>
+                </td>
+
+                <!-- Categoria -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; white-space: nowrap;">
+                   <?php if (!empty($categories) && !empty($user) && (($user['role'] ?? '')==='admin')): ?>
+                        <select onchange="updateRecordCategory('<?= View::e($row['id']) ?>', this.value)" 
+                                onclick="event.stopPropagation();"
+                                style="font-size:0.8rem; font-weight:600; color:var(--legal-royal); border: 1px solid var(--legal-border); padding: 2px 4px; border-radius: 4px; max-width: 150px;">
+                          <option value="">Sem Categoria</option>
+                          <?php foreach ($categories as $cat): ?>
+                            <option value="<?= View::e($cat['id']) ?>" <?= ($row['category_id'] == $cat['id']) ? 'selected' : '' ?>>
+                              <?= View::e($cat['name']) ?>
+                            </option>
+                          <?php endforeach; ?>
+                        </select>
+                    <?php else: ?>
+                        <?php if($row['category']): ?>
+                          <span style="font-size:0.8rem; font-weight:600; color:var(--legal-royal);">
+                            <?= View::e($row['category']) ?>
+                          </span>
+                        <?php else: ?>
+                          <span class="text-muted" style="font-size:0.8rem;">-</span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </td>
+
+                <!-- açao -->
+                <td style="padding: 1rem; text-align: center; vertical-align: middle; white-space: nowrap;">
+                  <div style="display: flex; gap: 4px; justify-content: center;">
+                    <a href="/records/view/<?= View::e($row['id']) ?>" class="btn btn-sm btn-outline-primary" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">
+                      Ver
                     </a>
-                    <?php if (!empty($user) && (($user['role'] ?? '')==='admin')): ?>
-                      <button class="btn btn-danger btn-sm btn-del" type="button" title="Excluir">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <?php if (!empty($user) && (($user['role'] ?? '') === 'admin')): ?>
+                      <button onclick="deleteRecord('<?= View::e($row['id']) ?>')" class="btn btn-sm btn-outline-danger" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">
+                        Excluir
                       </button>
                     <?php endif; ?>
                   </div>
-                  <span class="msg" aria-live="polite" style="display:block; font-size:0.8rem; margin-top:4px;"></span>
                 </td>
               </tr>
-              <!-- Snippet Row if match in ementa/decisao -->
+              
+              <!-- Snippet Row (only if relevant terms matched outside visible columns) -->
               <?php if(!empty($terms)): ?>
                 <?php 
-                   $snippet = $getSnippet($row['ementa'] ?? '', $terms);
-                   if (!$snippet) $snippet = $getSnippet($row['decisao'] ?? '', $terms);
+                   // Since we show ementa and decisao now, we might not need this snippet row as much, 
+                   // but let's keep it for very long matches or other fields.
+                   // However, the user request layout is very dense.
+                   // I'll keep it but span all columns.
+                   $snippet = $getSnippet($row['ementa'] ?? '', $terms); // We show snippet in cell, but maybe context is needed?
                 ?>
-                <?php if ($snippet): ?>
-                <tr>
-                    <td colspan="8" class="border-0 pt-0 pb-3" style="background-color: #fcfcfc;">
-                        <div style="background-color: #f1f5f9; padding: 0.75rem; border-radius: 4px; border-left: 4px solid var(--legal-royal); font-size: 0.9rem; color: #475569; margin: 0 1rem;">
-                            <span style="font-weight: 600; color: var(--legal-navy); display: block; margin-bottom: 2px;">Trecho Relevante:</span>
-                            <?= $snippet ?>
-                        </div>
-                    </td>
-                </tr>
-                <?php endif; ?>
               <?php endif; ?>
             <?php endforeach; ?>
           <?php endif; ?>
@@ -222,17 +300,17 @@ $getSnippet = function($text, $terms) {
       </table>
     </div>
 
+    <!-- Pagination -->
     <?php 
       $totalPages = (int)ceil(($total ?? 0)/20); 
       if ($totalPages > 1): 
-        // Helper to build pagination links keeping all params
         $makePageLink = function($p) {
             $params = $_GET;
             $params['page'] = $p;
             return '?' . http_build_query($params);
         };
     ?>
-      <div class="pagination" style="display:flex; justify-content:center; gap:0.5rem; margin-top:2rem;">
+      <div class="pagination" style="display:flex; justify-content:center; gap:0.5rem; padding: 2rem; background: #fff; border-top: 1px solid var(--legal-border);">
         <?php if ($page > 1): ?>
              <a class="btn btn-secondary" href="<?= $makePageLink($page - 1) ?>">Anterior</a>
         <?php endif; ?>
@@ -256,7 +334,55 @@ $getSnippet = function($text, $terms) {
         <?php if ($page < $totalPages): ?>
              <a class="btn btn-secondary" href="<?= $makePageLink($page + 1) ?>">Próxima</a>
         <?php endif; ?>
-      </div>
-    <?php endif; ?>
   </div>
+    <?php endif; ?>
 </div>
+
+<script>
+  function updateRecordCategory(recordId, categoryId) {
+    const csrfToken = document.getElementById('recordsRoot').dataset.csrf || '';
+    
+    fetch('/records/update-category', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `record_id=${encodeURIComponent(recordId)}&category_id=${encodeURIComponent(categoryId)}&csrf=${encodeURIComponent(csrfToken)}`
+    })
+    .then(response => {
+      if (response.ok) {
+        // Optional: show toast success
+        console.log('Category updated');
+      } else {
+        alert('Erro ao atualizar categoria');
+      }
+    })
+    .catch(err => console.error(err));
+  }
+
+  function deleteRecord(recordId) {
+    if (!confirm('Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    const csrfToken = document.getElementById('recordsRoot').dataset.csrf || '';
+
+    fetch('/records/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `id=${encodeURIComponent(recordId)}&csrf=${encodeURIComponent(csrfToken)}`
+    })
+    .then(response => {
+      if (response.ok) {
+        // Remove row from table
+        const row = document.querySelector(`tr[data-id="${recordId}"]`);
+        if (row) row.remove();
+      } else {
+        alert('Erro ao excluir registro');
+      }
+    })
+    .catch(err => console.error(err));
+  }
+</script>

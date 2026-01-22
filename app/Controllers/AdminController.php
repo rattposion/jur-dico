@@ -23,6 +23,165 @@ class AdminController extends Controller
         $this->view('admin/dashboard', ['csrf' => CSRF::generate($this->config), 'categories' => $cats]);
     }
 
+    public function stats(): void
+    {
+        Auth::requireAuth();
+        $this->view('admin/stats', ['csrf' => CSRF::generate($this->config)]);
+    }
+
+    public function analytics(): void
+    {
+        Auth::requireAuth();
+        $this->view('admin/analytics', ['csrf' => CSRF::generate($this->config)]);
+    }
+
+    public function getAnalyticsData(): void
+    {
+        Auth::requireAuth();
+        
+        $period = $_GET['period'] ?? 'month';
+        $start = $_GET['start'] ?? null;
+        $end = $_GET['end'] ?? null;
+        
+        $db = \App\Core\DB::pdo();
+        
+        // Calculate Date Range
+        $now = new \DateTime();
+        $startDate = clone $now;
+        $endDate = clone $now;
+        $prevStartDate = clone $now;
+        $prevEndDate = clone $now;
+        
+        switch ($period) {
+            case 'today':
+                $startDate->setTime(0, 0, 0);
+                $prevStartDate->modify('-1 day')->setTime(0, 0, 0);
+                $prevEndDate->modify('-1 day')->setTime(23, 59, 59);
+                break;
+            case 'week':
+                $startDate->modify('-7 days')->setTime(0, 0, 0);
+                $prevStartDate->modify('-14 days')->setTime(0, 0, 0);
+                $prevEndDate->modify('-8 days')->setTime(23, 59, 59);
+                break;
+            case 'month':
+                $startDate->modify('-30 days')->setTime(0, 0, 0);
+                $prevStartDate->modify('-60 days')->setTime(0, 0, 0);
+                $prevEndDate->modify('-31 days')->setTime(23, 59, 59);
+                break;
+            case 'custom':
+                if ($start) $startDate = new \DateTime($start);
+                if ($end) $endDate = new \DateTime($end . ' 23:59:59');
+                // For custom, prev period is same duration before start
+                $diff = $startDate->diff($endDate);
+                $prevEndDate = clone $startDate;
+                $prevEndDate->modify('-1 second');
+                $prevStartDate = clone $prevEndDate;
+                $prevStartDate->sub($diff);
+                break;
+        }
+        
+        $fmtStart = $startDate->format('Y-m-d H:i:s');
+        $fmtEnd = $endDate->format('Y-m-d H:i:s');
+        $fmtPrevStart = $prevStartDate->format('Y-m-d H:i:s');
+        $fmtPrevEnd = $prevEndDate->format('Y-m-d H:i:s');
+        
+        // Helper for counts
+        $getCount = function($s, $e) use ($db) {
+            $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE created_at BETWEEN :s AND :e");
+            $stmt->execute([':s' => $s, ':e' => $e]);
+            return (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
+        };
+        
+        $getCategorizedCount = function($s, $e) use ($db) {
+            $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE category_id IS NOT NULL AND created_at BETWEEN :s AND :e");
+            $stmt->execute([':s' => $s, ':e' => $e]);
+            return (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
+        };
+
+        // KPI 1: Total Records Imported (Volume)
+        $currentVolume = $getCount($fmtStart, $fmtEnd);
+        $prevVolume = $getCount($fmtPrevStart, $fmtPrevEnd);
+        $volumeChange = $prevVolume > 0 ? (($currentVolume - $prevVolume) / $prevVolume) * 100 : 0;
+        
+        // KPI 2: Categorization Rate (Conversion)
+        $currentCat = $getCategorizedCount($fmtStart, $fmtEnd);
+        $currentRate = $currentVolume > 0 ? ($currentCat / $currentVolume) * 100 : 0;
+        $prevCat = $getCategorizedCount($fmtPrevStart, $fmtPrevEnd);
+        $prevRate = $prevVolume > 0 ? ($prevCat / $prevVolume) * 100 : 0;
+        $rateChange = $currentRate - $prevRate; // Absolute percentage point change
+        
+        // KPI 3: Active Categories (Diversity)
+        $sqlCatDiv = "SELECT COUNT(DISTINCT category_id) as c FROM records WHERE created_at BETWEEN :s AND :e AND category_id IS NOT NULL";
+        $stmt = $db->prepare($sqlCatDiv);
+        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $currentDiv = (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
+        
+        // KPI 4: Decisions (Judgments) - using dataDecisao if available in range, else created_at
+        // For simplicity, counting records with dataDecisao populated within period
+        // Note: dataDecisao is usually YYYY-MM-DD or similar string.
+        $stmt = $db->prepare("SELECT COUNT(1) as c FROM records WHERE dataDecisao IS NOT NULL AND created_at BETWEEN :s AND :e");
+        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $currentDecisions = (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
+
+        // Chart 1: Trend (Line) - Daily Volume
+        $sqlTrend = "SELECT DATE(created_at) as date, COUNT(1) as count FROM records WHERE created_at BETWEEN :s AND :e GROUP BY date ORDER BY date";
+        $stmt = $db->prepare($sqlTrend);
+        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $trendData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        
+        // Fill gaps for trend
+        $labels = [];
+        $values = [];
+        $interval = new \DateInterval('P1D');
+        $periodRange = new \DatePeriod($startDate, $interval, $endDate);
+        $trendMap = array_column($trendData, 'count', 'date');
+        
+        foreach ($periodRange as $dt) {
+            $d = $dt->format('Y-m-d');
+            $labels[] = $d;
+            $values[] = $trendMap[$d] ?? 0;
+        }
+
+        // Chart 2: Top Categories (Bar)
+        $sqlTopCats = "SELECT c.name, COUNT(r.id) as count FROM records r JOIN categories c ON r.category_id = c.id WHERE r.created_at BETWEEN :s AND :e GROUP BY c.name ORDER BY count DESC LIMIT 5";
+        $stmt = $db->prepare($sqlTopCats);
+        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $topCats = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        
+        // Chart 3: Status Distribution (Doughnut)
+        // Categorized vs Pending
+        $pending = $currentVolume - $currentCat;
+        $distribution = [
+            ['label' => 'Categorizado', 'value' => $currentCat],
+            ['label' => 'Pendente', 'value' => $pending]
+        ];
+
+        // Table: Recent Records
+        $sqlRecent = "SELECT r.numeroProcesso, r.siglaClasse, r.dataDecisao, c.name as category FROM records r LEFT JOIN categories c ON r.category_id = c.id WHERE r.created_at BETWEEN :s AND :e ORDER BY r.created_at DESC LIMIT 10";
+        $stmt = $db->prepare($sqlRecent);
+        $stmt->execute([':s' => $fmtStart, ':e' => $fmtEnd]);
+        $recentRecords = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $response = [
+            'kpi' => [
+                'volume' => ['value' => $currentVolume, 'change' => round($volumeChange, 1)],
+                'rate' => ['value' => round($currentRate, 1), 'change' => round($rateChange, 1)],
+                'diversity' => ['value' => $currentDiv, 'change' => 0], // Simplified
+                'decisions' => ['value' => $currentDecisions, 'change' => 0]
+            ],
+            'charts' => [
+                'trend' => ['labels' => $labels, 'data' => $values],
+                'categories' => $topCats,
+                'distribution' => $distribution
+            ],
+            'table' => $recentRecords,
+            'debug' => ['start' => $fmtStart, 'end' => $fmtEnd]
+        ];
+
+        header('Content-Type: application/json');
+        echo json_encode($response);
+    }
+
     public function import(): void
     {
         Auth::requireAuth();
@@ -61,15 +220,35 @@ class AdminController extends Controller
             return;
         }
         $tmp = $_FILES['json']['tmp_name'];
+        $tab = $_POST['tab'] ?? '';
+        $tabMap = [
+            'acor' => 'ACO',
+            'dtxt' => 'DTXT',
+            'acp' => 'ACP',
+            'ap' => 'AP', // or POP, but AP is standard sigla
+            'msc' => 'MSC'
+        ];
+        $forcedClass = $tabMap[$tab] ?? null;
+
         $count = 0;
-        foreach (JSONStream::iterateObjects($tmp) as $obj) { Record::upsert($obj); $count++; }
+        foreach (JSONStream::iterateObjects($tmp) as $obj) { 
+            if ($forcedClass) {
+                $obj['siglaClasse'] = $forcedClass;
+                // Also update verbose class name if needed, but sigla is the key
+                if (!isset($obj['classe'])) $obj['classe'] = $forcedClass;
+            }
+            Record::upsert($obj); 
+            $count++; 
+        }
 
         // Auto-correction for Órgão Julgador
         $updater = new RecordUpdater($this->config);
         $fixStats = $updater->fixOrgaoJulgador('PRIMEIRA SEÇÃO');
         $remaining = $updater->validateCompleteness('PRIMEIRA SEÇÃO');
         
-        $msg = "Uploaded $count records. Fixed Organs: {$fixStats['updated']}. Remaining invalid: $remaining.";
+        $msg = "Uploaded $count records";
+        if ($forcedClass) $msg .= " (Tab: $tab -> Class: $forcedClass)";
+        $msg .= ". Fixed Organs: {$fixStats['updated']}. Remaining invalid: $remaining.";
 
         $cats = Category::all();
         $this->view('admin/dashboard', ['message' => $msg, 'csrf' => CSRF::generate($this->config), 'categories' => $cats]);

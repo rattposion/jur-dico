@@ -10,13 +10,19 @@ class Record
 {
     public static function upsert(array $data): void
     {
+        // Map JSON aliases to DB columns
+        $numeroProcesso = $data['numeroProcesso'] ?? $data['numero'] ?? null;
+        $siglaClasse = $data['siglaClasse'] ?? $data['classe'] ?? null;
+        $ministroRelator = $data['ministroRelator'] ?? $data['relator'] ?? null;
+        $dataDecisao = $data['dataDecisao'] ?? $data['dataJulgamento'] ?? null;
+
         $stmt = DB::pdo()->prepare('INSERT INTO records (
             id, numeroProcesso, numeroRegistro, siglaClasse, descricaoClasse,
-            nomeOrgaoJulgador, ministroRelator, dataPublicacao, ementa,
+            nomeOrgaoJulgador, codOrgaoJulgador, ministroRelator, dataPublicacao, ementa,
             tipoDeDecisao, dataDecisao, decisao, created_at
         ) VALUES (
             :id, :numeroProcesso, :numeroRegistro, :siglaClasse, :descricaoClasse,
-            :nomeOrgaoJulgador, :ministroRelator, :dataPublicacao, :ementa,
+            :nomeOrgaoJulgador, :codOrgaoJulgador, :ministroRelator, :dataPublicacao, :ementa,
             :tipoDeDecisao, :dataDecisao, :decisao, :created_at
         ) ON DUPLICATE KEY UPDATE
             numeroProcesso=VALUES(numeroProcesso),
@@ -24,6 +30,7 @@ class Record
             siglaClasse=VALUES(siglaClasse),
             descricaoClasse=VALUES(descricaoClasse),
             nomeOrgaoJulgador=VALUES(nomeOrgaoJulgador),
+            codOrgaoJulgador=VALUES(codOrgaoJulgador),
             ministroRelator=VALUES(ministroRelator),
             dataPublicacao=VALUES(dataPublicacao),
             ementa=VALUES(ementa),
@@ -31,17 +38,18 @@ class Record
             dataDecisao=VALUES(dataDecisao),
             decisao=VALUES(decisao)');
         $stmt->execute([
-            ':id' => (string)($data['id'] ?? ''),
-            ':numeroProcesso' => self::s($data['numeroProcesso'] ?? null),
+            ':id' => (string)($data['id'] ?? uniqid()),
+            ':numeroProcesso' => self::s($numeroProcesso),
             ':numeroRegistro' => self::s($data['numeroRegistro'] ?? null),
-            ':siglaClasse' => self::s($data['siglaClasse'] ?? null),
+            ':siglaClasse' => self::s($siglaClasse),
             ':descricaoClasse' => self::s($data['descricaoClasse'] ?? null),
             ':nomeOrgaoJulgador' => self::s($data['nomeOrgaoJulgador'] ?? null),
-            ':ministroRelator' => self::s($data['ministroRelator'] ?? null),
+            ':codOrgaoJulgador' => self::s($data['codOrgaoJulgador'] ?? null),
+            ':ministroRelator' => self::s($ministroRelator),
             ':dataPublicacao' => self::s($data['dataPublicacao'] ?? null),
             ':ementa' => self::s($data['ementa'] ?? null),
             ':tipoDeDecisao' => self::s($data['tipoDeDecisao'] ?? null),
-            ':dataDecisao' => self::s($data['dataDecisao'] ?? null),
+            ':dataDecisao' => self::s($dataDecisao),
             ':decisao' => self::s($data['decisao'] ?? null),
             ':created_at' => date('c'),
         ]);
@@ -82,6 +90,46 @@ class Record
         return $stmt->rowCount();
     }
 
+    public static function getTabCounts(?string $q, array $filters): array
+    {
+        unset($filters['tab']);
+        [$where, $params] = self::buildAdvancedWhere($q, $filters);
+        
+        $sql = "SELECT 
+            COUNT(1) as all_count,
+            COUNT(CASE WHEN (r.siglaClasse = 'ACO' OR r.siglaClasse LIKE '%ACOR%') THEN 1 END) as acor,
+            COUNT(CASE WHEN r.siglaClasse = 'DTXT' THEN 1 END) as dtxt,
+            COUNT(CASE WHEN r.siglaClasse = 'ACP' THEN 1 END) as acp,
+            COUNT(CASE WHEN r.siglaClasse IN ('AP', 'POP') THEN 1 END) as ap,
+            COUNT(CASE WHEN (r.siglaClasse = 'MSC' OR r.siglaClasse = 'MS') THEN 1 END) as msc
+            FROM records r 
+            LEFT JOIN categories c ON c.id = r.category_id 
+            $where";
+            
+        $stmt = DB::pdo()->prepare($sql);
+        foreach ($params as $k => $v) $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        $stmt->execute();
+        
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public static function getCategoryCounts(?string $q, array $filters): array
+    {
+        unset($filters['category']);
+        [$where, $params] = self::buildAdvancedWhere($q, $filters);
+        
+        $sql = "SELECT COALESCE(r.category_id, 'uncategorized') as cat_id, COUNT(1) as count 
+                FROM records r 
+                $where 
+                GROUP BY cat_id";
+            
+        $stmt = DB::pdo()->prepare($sql);
+        foreach ($params as $k => $v) $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        $stmt->execute();
+        
+        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
+
     public static function paginate(int $page, int $perPage, ?string $q, array $filters = [], string $sort = 'dataDecisao', string $dir = 'DESC'): array
     {
         $offset = ($page - 1) * $perPage;
@@ -98,7 +146,7 @@ class Record
         
         [$where, $params] = self::buildAdvancedWhere($q, $filters);
 
-        $sql = "SELECT r.id, r.numeroProcesso, r.siglaClasse, r.descricaoClasse, r.ministroRelator, r.nomeOrgaoJulgador, r.dataDecisao, r.dataPublicacao, r.category_id, c.name AS category
+        $sql = "SELECT r.id, r.numeroProcesso, r.numeroRegistro, r.siglaClasse, r.descricaoClasse, r.ministroRelator, r.nomeOrgaoJulgador, r.codOrgaoJulgador, r.dataDecisao, r.dataPublicacao, r.ementa, r.decisao, r.category_id, c.name AS category
                 FROM records r LEFT JOIN categories c ON c.id = r.category_id
                 $where ORDER BY r.$sort $dir LIMIT $perPage OFFSET $offset";
         $stmt = DB::pdo()->prepare($sql);
@@ -150,6 +198,32 @@ class Record
         }
         if (!empty($filters['start'])) { $clauses[] = 'r.dataDecisao >= :start'; $params[':start'] = $filters['start']; }
         if (!empty($filters['end'])) { $clauses[] = 'r.dataDecisao <= :end'; $params[':end'] = $filters['end']; }
+        
+        // Tab Filters
+        if (!empty($filters['tab'])) {
+            switch ($filters['tab']) {
+                case 'acor':
+                    // Processo Estrutural ACOR - Assuming ACO or similar
+                    $clauses[] = "(r.siglaClasse = 'ACO' OR r.siglaClasse LIKE '%ACOR%')";
+                    break;
+                case 'dtxt':
+                    // Processo Estrutural DTXT - Placeholder or unknown sigla
+                    $clauses[] = "r.siglaClasse = 'DTXT'";
+                    break;
+                case 'acp':
+                    // Ação Civil Pública
+                    $clauses[] = "r.siglaClasse = 'ACP'";
+                    break;
+                case 'ap':
+                    // Ação Popular
+                    $clauses[] = "r.siglaClasse IN ('AP', 'POP')";
+                    break;
+                case 'msc':
+                    // Mandado de Segurança Coletivo
+                    $clauses[] = "(r.siglaClasse = 'MSC' OR r.siglaClasse = 'MS')"; // Including MS as fallback for demo if MSC is empty
+                    break;
+            }
+        }
         
         // Advanced Filters
         if (!empty($filters['tribunal'])) { $clauses[] = 'r.nomeOrgaoJulgador LIKE :trib'; $params[':trib'] = '%' . $filters['tribunal'] . '%'; }

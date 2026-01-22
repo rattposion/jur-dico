@@ -398,7 +398,19 @@ tr:hover td {
   text-transform: uppercase;
 }
 
-/* --- CHAT INTERFACE INTEGRATION --- */
+/* Full Width Layout */
+.full-width-main {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  background: white;
+  min-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Chat Interface Integration */
 /* Ensure Chat Viewport takes full height without footer */
 body:has(.chat-interface) {
   overflow: hidden;
